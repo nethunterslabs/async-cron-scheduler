@@ -56,9 +56,16 @@
 //! });
 //! ```
 
+#[cfg(all(feature = "cron", feature = "croner"))]
+compile_error!("feature \"cron\" and feature \"croner\" cannot be enabled at the same time");
+
 use chrono::DateTime;
 use chrono::TimeZone;
+
+#[cfg(feature = "cron")]
 pub use cron;
+#[cfg(feature = "croner")]
+pub use croner;
 
 mod job;
 mod scheduler;

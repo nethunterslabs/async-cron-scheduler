@@ -12,7 +12,10 @@ pub struct JobId(pub slotmap::DefaultKey);
 
 /// Contains scheduling information for a job at a given timezone.
 pub struct Job<Tz: TimeZoneExt> {
+    #[cfg(feature = "cron")]
     pub(crate) iterator: cron::OwnedScheduleIterator<Tz>,
+    #[cfg(feature = "croner")]
+    pub(crate) iterator: croner::CronIterator<Tz>,
     pub(crate) next: DateTime<Tz>,
 }
 
@@ -22,8 +25,19 @@ impl<Tz: TimeZoneExt> Job<Tz> {
     /// # Errors
     ///
     /// Errors if the cron expression is invalid.
+    #[cfg(feature = "cron")]
     pub fn cron(expression: &str) -> Result<Self, cron::error::Error> {
         cron::Schedule::from_str(expression).map(Job::cron_schedule)
+    }
+
+    /// Creates a job from a cron expression string.
+    ///
+    /// # Errors
+    ///
+    /// Errors if the cron expression is invalid.
+    #[cfg(feature = "croner")]
+    pub fn cron(expression: &str) -> Result<Self, croner::errors::CronError> {
+        croner::Cron::from_str(expression).map(Job::cron_schedule)
     }
 
     /// Creates a job from a pre-generated cron schedule.
@@ -33,8 +47,23 @@ impl<Tz: TimeZoneExt> Job<Tz> {
     /// Panics at the end of time.
     #[must_use]
     #[allow(clippy::needless_pass_by_value)]
+    #[cfg(feature = "cron")]
     pub fn cron_schedule(schedule: cron::Schedule) -> Self {
         let mut iterator = schedule.upcoming_owned(Tz::timescale());
+        let next = iterator.next().unwrap();
+        Job { iterator, next }
+    }
+
+    /// Creates a job from a pre-generated cron schedule.
+    ///
+    /// # Panics
+    ///
+    /// Panics at the end of time.
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
+    #[cfg(feature = "croner")]
+    pub fn cron_schedule(schedule: croner::Cron) -> Self {
+        let mut iterator = schedule.iter_from(Tz::now());
         let next = iterator.next().unwrap();
         Job { iterator, next }
     }
