@@ -10,13 +10,13 @@ keywords = ["cron", "job", "scheduler", "tokio", "smol"]
 edition = "2021"
 
 [dependencies]
-chrono = "0.4.31"
-cron = { version = "0.12.0", optional = true }
-croner = { version = "2.1.0", optional = true }
+chrono = "0.4.41"
+cron = { version = "0.15.0", optional = true }
+croner = { version = "3.0.0", optional = true }
 slotmap = "1.0.7"
-futures = "0.3.30"
-tachyonix = "0.2.1"
-tracing = { version = "0.1.40", optional = true }
+futures = "0.3.31"
+tachyonix = "0.3.1"
+tracing = { version = "0.1.41", optional = true }
 
 [features]
 default = ["cron"]
@@ -25,4 +25,4 @@ croner = ["dep:croner"]
 logging = ["dep:tracing"]
 
 [dev-dependencies]
-smol = "2.0.0"
+smol = "2.0.2"
