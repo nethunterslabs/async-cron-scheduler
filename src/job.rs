@@ -63,7 +63,7 @@ impl<Tz: TimeZoneExt> Job<Tz> {
     #[allow(clippy::needless_pass_by_value)]
     #[cfg(feature = "croner")]
     pub fn cron_schedule(schedule: croner::Cron) -> Self {
-        let mut iterator = schedule.iter_from(Tz::now());
+        let mut iterator = schedule.iter_from(Tz::now(), croner::Direction::Forward);
         let next = iterator.next().unwrap();
         Job { iterator, next }
     }
