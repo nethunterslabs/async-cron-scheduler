@@ -13,7 +13,7 @@ pub type Command = Box<dyn Fn(JobId) + Send + Sync>;
 
 /// Messages going into the scheduler service.
 enum SchedMessage<Tz: TimeZoneExt> {
-    Insert(JobId, Job<Tz>, Command),
+    Insert(JobId, Box<Job<Tz>>, Command),
     Remove(JobId),
 }
 
@@ -64,7 +64,7 @@ where
         let id = JobId(self.jobs.insert(()));
         let _result = self
             .sender
-            .send(SchedMessage::Insert(id, job, Box::new(command)))
+            .send(SchedMessage::Insert(id, Box::new(job), Box::new(command)))
             .await;
         id
     }
@@ -213,7 +213,7 @@ impl<Tz: TimeZoneExt> SchedulerModel<Tz> {
     pub fn update(&mut self, message: SchedMessage<Tz>) {
         match message {
             SchedMessage::Insert(id, job, func) => {
-                self.tasks.insert(id.0, (job, func));
+                self.tasks.insert(id.0, (*job, func));
                 self.next();
             }
 
