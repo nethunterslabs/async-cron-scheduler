@@ -63,7 +63,7 @@ impl<Tz: TimeZoneExt> Job<Tz> {
     #[allow(clippy::needless_pass_by_value)]
     #[cfg(feature = "croner")]
     pub fn cron_schedule(schedule: croner::Cron) -> Self {
-        let mut iterator = schedule.iter_from(Tz::now(), croner::Direction::Forward);
+        let mut iterator = schedule.iter_after(Tz::now());
         let next = iterator.next().unwrap();
         Job { iterator, next }
     }
@@ -91,6 +91,20 @@ mod tests {
         let job = Job::<Local>::cron("0 * * * *").unwrap();
         assert!(job.next > before);
         assert_eq!(job.next.minute(), 0);
+    }
+
+    /// A job created (or reloaded) part way through a matching second must not get that
+    /// second again: `iter_from` is inclusive of now, `iter_after` is not.
+    #[test]
+    fn cron_schedule_starts_after_now() {
+        let cron = croner::parser::CronParser::builder()
+            .seconds(croner::parser::Seconds::Required)
+            .build()
+            .parse("* * * * * *")
+            .unwrap();
+        let before = Utc::now();
+        let job = Job::<Utc>::cron_schedule(cron);
+        assert!(job.next > before, "{} is not after {before}", job.next);
     }
 
     /// croner 4 rejects the `5/5` step shortcut by default; the explicit range form stays.
