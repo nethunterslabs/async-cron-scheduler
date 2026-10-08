@@ -31,11 +31,11 @@ enum SchedMessage<Tz: TimeZoneExt> {
 /// let (mut scheduler, service) = Scheduler::<Local>::launch(Timer::after);
 ///
 /// // Creates a job which executes every 3 seconds.
-/// let job = Job::cron("1/3 * * * * *").unwrap();
+/// let job = Job::cron("1-59/3 * * * * *").unwrap();
 /// let fizz_id = scheduler.insert(job, |id| println!("Fizz")).await;
 ///
 /// // Creates a job which executes every 5 seconds.
-/// let job = Job::cron("1/5 * * * * *").unwrap();
+/// let job = Job::cron("1-59/5 * * * * *").unwrap();
 /// let buzz_id = scheduler.insert(job, |id| println!("Buzz")).await;
 ///
 /// service.await;
@@ -53,7 +53,7 @@ where
     ///
     /// ```
     /// // Creates a job which executes every 3 seconds.
-    /// let job = Job::cron("1/3 * * * * *").unwrap();
+    /// let job = Job::cron("1-59/3 * * * * *").unwrap();
     /// let fizz_id = scheduler.insert(job, |id| println!("Fizz")).await;
     /// ```
     pub async fn insert(

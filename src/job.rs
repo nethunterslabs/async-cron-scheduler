@@ -15,7 +15,7 @@ pub struct Job<Tz: TimeZoneExt> {
     #[cfg(feature = "cron")]
     pub(crate) iterator: cron::OwnedScheduleIterator<Tz>,
     #[cfg(feature = "croner")]
-    pub(crate) iterator: croner::CronIterator<Tz>,
+    pub(crate) iterator: croner::CronIterator<DateTime<Tz>>,
     pub(crate) next: DateTime<Tz>,
 }
 
@@ -66,5 +66,37 @@ impl<Tz: TimeZoneExt> Job<Tz> {
         let mut iterator = schedule.iter_from(Tz::now(), croner::Direction::Forward);
         let next = iterator.next().unwrap();
         Job { iterator, next }
+    }
+}
+
+#[cfg(all(test, feature = "croner"))]
+mod tests {
+    use super::Job;
+    use chrono::{Duration, Local, Timelike, Utc};
+
+    #[test]
+    fn cron_schedule_iterates_forward_from_now() {
+        let before = Utc::now();
+        let mut job = Job::<Utc>::cron("*/5 * * * *").unwrap();
+        assert!(job.next > before);
+        assert_eq!(job.next.minute() % 5, 0);
+        assert_eq!(job.next.second(), 0);
+        let following = job.iterator.next().unwrap();
+        assert_eq!(following - job.next, Duration::minutes(5));
+    }
+
+    #[test]
+    fn cron_schedule_runs_in_the_local_timezone() {
+        let before = Local::now();
+        let job = Job::<Local>::cron("0 * * * *").unwrap();
+        assert!(job.next > before);
+        assert_eq!(job.next.minute(), 0);
+    }
+
+    /// croner 4 rejects the `5/5` step shortcut by default; the explicit range form stays.
+    #[test]
+    fn step_shortcut_needs_an_explicit_range() {
+        assert!(Job::<Utc>::cron("5/5 * * * *").is_err());
+        assert!(Job::<Utc>::cron("5-59/5 * * * *").is_ok());
     }
 }
