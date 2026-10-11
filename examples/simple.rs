@@ -12,15 +12,15 @@ fn main() {
         let (mut scheduler, sched_service) = Scheduler::<Local>::launch(Timer::after);
 
         // Creates a job which executes every 1 seconds.
-        let job = Job::cron("1/1 * * * * *").unwrap();
+        let job = Job::cron("1-59/1 * * * * *").unwrap();
         let fizz_id = scheduler.insert(job, |_id| println!("Fizz")).await;
 
         // Creates a job which executes every 3 seconds.
-        let job = Job::cron("1/3 * * * * *").unwrap();
+        let job = Job::cron("1-59/3 * * * * *").unwrap();
         let buzz_id = scheduler.insert(job, |_id| println!("Buzz")).await;
 
         // Creates a job which executes every 5 seconds.
-        let job = Job::cron("1/5 * * * * *").unwrap();
+        let job = Job::cron("1-59/5 * * * * *").unwrap();
         let bazz_id = scheduler.insert(job, |_id| println!("Bazz")).await;
 
         // A future which gradually drops jobs from the scheduler.

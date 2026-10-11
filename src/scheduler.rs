@@ -31,11 +31,11 @@ enum SchedMessage<Tz: TimeZoneExt> {
 /// let (mut scheduler, service) = Scheduler::<Local>::launch(Timer::after);
 ///
 /// // Creates a job which executes every 3 seconds.
-/// let job = Job::cron("1/3 * * * * *").unwrap();
+/// let job = Job::cron("1-59/3 * * * * *").unwrap();
 /// let fizz_id = scheduler.insert(job, |id| println!("Fizz")).await;
 ///
 /// // Creates a job which executes every 5 seconds.
-/// let job = Job::cron("1/5 * * * * *").unwrap();
+/// let job = Job::cron("1-59/5 * * * * *").unwrap();
 /// let buzz_id = scheduler.insert(job, |id| println!("Buzz")).await;
 ///
 /// service.await;
@@ -53,7 +53,7 @@ where
     ///
     /// ```
     /// // Creates a job which executes every 3 seconds.
-    /// let job = Job::cron("1/3 * * * * *").unwrap();
+    /// let job = Job::cron("1-59/3 * * * * *").unwrap();
     /// let fizz_id = scheduler.insert(job, |id| println!("Fizz")).await;
     /// ```
     pub async fn insert(
@@ -190,13 +190,13 @@ impl<Tz: TimeZoneExt> SchedulerModel<Tz> {
             }
 
             if let Some((id, date)) = next {
-                let seconds_until = date.signed_duration_since(Tz::now()).num_seconds();
-                if let Ok(seconds_until) = u64::try_from(seconds_until) {
-                    if seconds_until > 0 {
+                // Wait the full remaining time, sub-second part included, so a job never
+                // runs before its instant. Only a zero or negative wait runs at once.
+                if let Ok(duration) = date.signed_duration_since(Tz::now()).to_std() {
+                    if !duration.is_zero() {
                         #[cfg(feature = "logging")]
-                        tracing::info!("next job in {} seconds", seconds_until);
+                        tracing::info!("next job in {:?}", duration);
 
-                        let duration = Duration::from_secs(seconds_until);
                         self.next = Some((id, duration));
                         return;
                     }
@@ -222,5 +222,61 @@ impl<Tz: TimeZoneExt> SchedulerModel<Tz> {
                 self.next();
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "croner"))]
+mod tests {
+    use super::Scheduler;
+    use crate::Job;
+    use chrono::{DateTime, Utc};
+    use croner::parser::{CronParser, Seconds};
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    /// A job must not run before its scheduled instant. `next()` truncates the wait to
+    /// whole seconds (`num_seconds()`), so a job inserted mid-second runs up to a second
+    /// early, every time: a per-second job fires at x.5 instead of x+1.0.
+    #[test]
+    fn fires_at_or_after_the_scheduled_instant() {
+        smol::block_on(async {
+            // Start half way through a second, where truncation loses the most.
+            let subsec = i64::from(Utc::now().timestamp_subsec_nanos());
+            let to_mid = (1_500_000_000 - subsec).rem_euclid(1_000_000_000);
+            smol::Timer::after(Duration::from_nanos(to_mid as u64)).await;
+
+            let (mut scheduler, service) = Scheduler::<Utc>::launch(smol::Timer::after);
+            let fires: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::default();
+            let cron = CronParser::builder()
+                .seconds(Seconds::Required)
+                .build()
+                .parse("* * * * * *")
+                .unwrap();
+            let recorded = fires.clone();
+            scheduler
+                .insert(Job::cron_schedule(cron), move |_| {
+                    recorded.lock().unwrap().push(Utc::now());
+                })
+                .await;
+
+            let stop = async move {
+                smol::Timer::after(Duration::from_millis(3_200)).await;
+                drop(scheduler);
+            };
+            futures::future::join(service, stop).await;
+
+            let fires = fires.lock().unwrap().clone();
+            // Every fire is for a whole second and must land just after it, never 0.5 s
+            // before it. The first is skipped in case the job was created on a boundary.
+            let early: Vec<_> = fires
+                .iter()
+                .skip(1)
+                .filter(|t| t.timestamp_subsec_millis() > 200)
+                .collect();
+            assert!(
+                early.is_empty(),
+                "fires before their instant: {early:?} of {fires:?}"
+            );
+        });
     }
 }
